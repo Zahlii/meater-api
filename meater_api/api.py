@@ -6,9 +6,8 @@ from pathlib import Path
 from typing import List
 
 import requests
-from matplotlib import pyplot as plt
 
-from model import Cook
+from meater_api.meater_model import Cook
 
 
 class MEATERAPI:
@@ -23,7 +22,11 @@ class MEATERAPI:
         self._app_version = "4.4.2"
         self._app_build = "12305"
 
-        self._sess.headers.update({"User-Agent": f"MEATER/{self._app_build} CFNetwork/1568.300.101 Darwin/24.2.0"})
+        self._sess.headers.update(
+            {
+                "User-Agent": f"MEATER/{self._app_build} CFNetwork/1568.300.101 Darwin/24.2.0"
+            }
+        )
         self._sess.hooks = {"response": lambda r, *args, **kwargs: self._raise(r)}
 
         self._device_id = device_id
@@ -61,7 +64,9 @@ class MEATERAPI:
     @staticmethod
     def _raise(res: requests.Response):
         try:
-            logging.info("%s %s [%d]", res.request.method, res.request.url, res.status_code)
+            logging.info(
+                "%s %s [%d]", res.request.method, res.request.url, res.status_code
+            )
             res.raise_for_status()
 
             return res
@@ -97,4 +102,5 @@ class MEATERAPI:
         self.save_config()
 
     def get_cooks(self) -> List[Cook]:
-        return [Cook(**c) for c in self._sess.get(self._base + "/v2/cooks").json()["data"]]
+        data = self._sess.get(self._base + "/v2/cooks").json()["data"]
+        return [Cook(**c) for c in data]
