@@ -12,9 +12,9 @@ if TYPE_CHECKING:
 
 
 class Alarm(BaseModel):
-    type: int
-    state: int
-    limit: int
+    type: "AlarmType"
+    state: "AlarmState"
+    limit: int  # Either C * 32 for Temperatures, or Seconds for Time Estimates
 
 
 class EstimatorConfig(BaseModel):
@@ -53,6 +53,11 @@ class Setup(BaseModel):
     @property
     def cut(self) -> "Cut":
         return cuts.get(self.cutID)
+
+    @computed_field
+    @property
+    def preset(self) -> "TemperatureRange":
+        return presets.get(self.presetID)
 
 
 class HistoryValue(BaseModel):
@@ -98,6 +103,24 @@ class ProbeType(IntEnum):
     SECOND_GENERATION_TWO_PROBE_BLOCK = 162
     SECOND_GENERATION_FOUR_PROBE_BLOCK = 164
     AMBER = 64
+
+
+class AlarmType(IntEnum):
+    ALARM_TYPE_MIN_AMBIENT = 0
+    ALARM_TYPE_MAX_AMBIENT = 1
+    ALARM_TYPE_MIN_INTERNAL = 2
+    ALARM_TYPE_MAX_INTERNAL = 3
+    ALARM_TYPE_TIME_FROM_NOW = 4
+    ALARM_TYPE_TIME_BEFORE_READY = 5
+    ALARM_TYPE_REPEAT_DURATION = 6
+    ALARM_TYPE_ESTIMATE_READY = 7
+
+
+class AlarmState(IntEnum):
+    ALARM_STATE_NOT_READY = 0
+    ALARM_STATE_READY = 1
+    ALARM_STATE_FIRED = 2
+    ALARM_STATE_DISMISSED = 3
 
 
 class Raw(BaseModel):
@@ -160,11 +183,16 @@ json_data_meats = json.load(
 )
 
 cuts: dict[int, Cut] = {}
+presets: dict[int, TemperatureRange] = {}
+
 for category in json_data_meats.get("categories", []):
     for animal in category["animals"]:
         for cut_type in animal["cut_types"]:
             for cut in cut_type["cuts"]:
                 cuts[cut["id"]] = Cut.model_validate(cut)
+
+                for tr in cuts[cut["id"]].temperature_ranges:
+                    presets[tr.id] = tr
 
 
 class Cook(BaseModel):
@@ -178,7 +206,7 @@ class Cook(BaseModel):
     raw: Raw
 
     def as_str(self):
-        return f"Cook(updated_at={self.updatedAt.strftime('%Y-%m-%d %H:%M')},started_at={self.startedAt.strftime('%Y-%m-%d %H:%M')},\n     cut={self.raw.setup.cut.name_long},duration={self.duration},peak={temp(self.raw.peak):.1f}°C,target={temp(self.raw.setup.targetInternalTemperature):.1f}°C)"
+        return f"Cook(updated_at={self.updatedAt.strftime('%Y-%m-%d %H:%M')},started_at={self.startedAt.strftime('%Y-%m-%d %H:%M')},\n     cut={self.raw.setup.cut.name_long},preset={self.raw.setup.preset.name},duration={self.duration},peak={temp(self.raw.peak):.1f}°C,target={temp(self.raw.setup.targetInternalTemperature):.1f}°C)"
 
     @computed_field
     @property
